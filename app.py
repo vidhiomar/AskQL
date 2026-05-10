@@ -1,10 +1,10 @@
 from llm_chain import (
     generate_sql,
     fix_sql,
-    execute_sql
+    explain_result
 )
 
-from database import (
+from db import (
     get_schema,
     get_relationships,
     schema_to_text,
@@ -13,7 +13,6 @@ from database import (
     execute_sql
 )
 
-# Build DB Context
 
 def build_database_context():
 
@@ -21,7 +20,9 @@ def build_database_context():
 
     relationships = get_relationships()
 
-    schema_text = schema_to_text(schema)
+    schema_text = schema_to_text(
+        schema
+    )
 
     relationship_text = relationships_to_text(
         relationships
@@ -35,137 +36,93 @@ def build_database_context():
         sample_data_text
     )
 
-# Full AskSQL Pipeline
 
 def ask_database(question):
 
-    print("\n" + "=" * 60)
-    print("USER QUESTION")
-    print("=" * 60)
-
-    print(question)
-
-    # Build DB Context
     (
         schema_text,
         relationship_text,
         sample_data_text
     ) = build_database_context()
 
-    # Generate SQL
-    sql_query = generate_sql(
+    generated_sql = generate_sql(
         question=question,
         schema_text=schema_text,
         relationship_text=relationship_text,
         sample_data_text=sample_data_text
     )
 
-    print("\n" + "=" * 60)
-    print("GENERATED SQL")
-    print("=" * 60)
+    result = execute_sql(
+        generated_sql
+    )
 
-    print(sql_query)
+    fixed_sql = None
 
-    # Execute SQL
-    result = execute_sql(sql_query)
-
-    # Auto Fix Logic 
-
+    # Auto-fix SQL if error occurs
     if isinstance(result, str) and "Error" in result:
 
-        print("\n" + "=" * 60)
-        print("SQL ERROR DETECTED")
-        print("=" * 60)
-
-        print(result)
-
-        print("\n Attempting Auto-Fix...")
-
         fixed_sql = fix_sql(
-            previous_sql=sql_query,
+            previous_sql=generated_sql,
             error_msg=result,
             schema_text=schema_text,
             relationship_text=relationship_text,
             sample_data_text=sample_data_text
         )
 
-        print("\n" + "=" * 60)
-        print("FIXED SQL")
-        print("=" * 60)
-
-        print(fixed_sql)
-
-        # Retry execution
-        result = execute_sql(fixed_sql)
-
-        sql_query = fixed_sql
-
-    # Final Result
-
-    print("\n" + "=" * 60)
-    print("QUERY RESULT")
-    print("=" * 60)
-
-    print(result)
-
-    # Generate Explanation
-
-    try:
-
-        explanation = explain_result(
-            question=question,
-            sql_query=sql_query,
-            result=result
+        result = execute_sql(
+            fixed_sql
         )
 
-        print("\n" + "=" * 60)
-        print("AI EXPLANATION")
-        print("=" * 60)
+    # Generate explanation
+    explanation = explain_result(
+        question=question,
+        sql_query=fixed_sql if fixed_sql else generated_sql,
+        result=result
+    )
 
-        print(explanation)
+    return {
+        "question": question,
+        "generated_sql": generated_sql,
+        "fixed_sql": fixed_sql,
+        "result": result,
+        "explanation": explanation
+    }
 
-    except Exception as e:
-
-        print("\nExplanation Error:", e)
-
-    print("\n" + "=" * 60)
-
-    return result
-
-
-# CLI Loop
-
-def run():
-
-    print("\n AskSQL System Started")
-    print("Type 'exit' to quit.\n")
-
-    while True:
-
-        question = input("AskSQL > ")
-
-        if question.lower() == "exit":
-
-            print("\nExiting AskSQL...")
-            break
-
-        if not question.strip():
-
-            print("Please enter a valid question.")
-            continue
-
-        try:
-
-            ask_database(question)
-
-        except Exception as e:
-
-            print("\n Unexpected Error:")
-            print(e)
-
-
-# Main Entry Point
 
 if __name__ == "__main__":
 
-    run()
+    while True:
+
+        question = input(
+            "\nAskSQL > "
+        )
+
+        if question.lower() == "exit":
+
+            break
+
+        response = ask_database(
+            question
+        )
+
+        print("\nGenerated SQL:")
+        print(
+            response["generated_sql"]
+        )
+
+        if response["fixed_sql"]:
+
+            print("\nFixed SQL:")
+            print(
+                response["fixed_sql"]
+            )
+
+        print("\nResult:")
+        print(
+            response["result"]
+        )
+
+        print("\nExplanation:")
+        print(
+            response["explanation"]
+        )

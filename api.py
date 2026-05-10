@@ -1,13 +1,19 @@
 from fastapi import (
-    FastAPI, UploadFile , File,HTTPException
+    FastAPI,
+    UploadFile,
+    File,
+    HTTPException
 )
 
 from pydantic import BaseModel
+
 import shutil
 import os
-from excel_loader import upload_excel_to_db
-from app import ask_database
+import time
 
+from excel_loader import upload_excel_to_db
+
+from app import ask_database
 
 app = FastAPI(
     title="AskSQL API",
@@ -15,21 +21,20 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Request Model
 
 class QueryRequest(BaseModel):
+
     question: str
 
-# Root Endpoint
 
 @app.get("/")
 def home():
 
     return {
+        "success": True,
         "message": "AskSQL API Running"
     }
 
-# Upload Excel Endpoint
 
 @app.post("/upload")
 async def upload_excel(
@@ -37,8 +42,6 @@ async def upload_excel(
 ):
 
     try:
-
-        # Validate File Type
 
         allowed_extensions = [
             ".xlsx",
@@ -53,10 +56,8 @@ async def upload_excel(
 
             raise HTTPException(
                 status_code=400,
-                detail="Only Excel files allowed"
+                detail="Only Excel files are allowed."
             )
-
-        # Save Uploaded File
 
         upload_dir = "uploads"
 
@@ -77,8 +78,6 @@ async def upload_excel(
                 buffer
             )
 
-        # Load Excel into DB
-
         result = upload_excel_to_db(
             file_path
         )
@@ -92,8 +91,10 @@ async def upload_excel(
 
         return {
             "success": True,
-            "message": "Excel uploaded successfully",
-            "data": result
+            "message": "Excel uploaded successfully.",
+            "table_name": result["table_name"],
+            "columns": result["columns"],
+            "rows": result["rows"]
         }
 
     except Exception as e:
@@ -103,21 +104,41 @@ async def upload_excel(
             detail=str(e)
         )
 
-# Ask Question Endpoint
 
 @app.post("/ask")
 def ask_query(request: QueryRequest):
 
     try:
 
-        result = ask_database(
+        start_time = time.time()
+
+        response = ask_database(
             request.question
+        )
+
+        end_time = time.time()
+
+        execution_time = round(
+            end_time - start_time,
+            2
         )
 
         return {
             "success": True,
             "question": request.question,
-            "result": result
+            "generated_sql": response.get(
+                "generated_sql"
+            ),
+            "fixed_sql": response.get(
+                "fixed_sql"
+            ),
+            "result": response.get(
+                "result"
+            ),
+            "explanation": response.get(
+                "explanation"
+            ),
+            "execution_time_seconds": execution_time
         }
 
     except Exception as e:
