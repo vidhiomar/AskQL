@@ -1,20 +1,16 @@
 import sqlite3
-from groq import Groq
-from dotenv import load_dotenv
-import os
 
-# Load env
-load_dotenv()
-
-# Groq Client
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-
-# SQLite Connection
+# Database Connect
 DATABASE_PATH = "database.db"
-conn = sqlite3.connect(DATABASE_PATH)
+
+conn = sqlite3.connect(
+    DATABASE_PATH,
+    check_same_thread=False
+)
+
 cursor = conn.cursor()
 
-# Fetch Tables
+# Fetch All Tables
 def get_tables():
 
     cursor.execute("""
@@ -25,10 +21,12 @@ def get_tables():
     """)
 
     tables = cursor.fetchall()
-    
+
     return [table[0] for table in tables]
 
+
 # Fetch Schema Dynamically
+
 def get_schema():
 
     schema = {}
@@ -56,8 +54,8 @@ def get_schema():
 
     return schema
 
-# Fetch Foreign Keys
 
+# Fetch Foreign Key Relationships
 def get_relationships():
 
     relationships = []
@@ -84,8 +82,8 @@ def get_relationships():
 
     return relationships
 
-# Convert Schema to Prompt Text
 
+# Convert Schema to Text
 def schema_to_text(schema):
 
     lines = []
@@ -100,186 +98,106 @@ def schema_to_text(schema):
 
     return "\n".join(lines)
 
+
 # Convert Relationships to Text
 def relationships_to_text(relationships):
 
     return "\n".join(relationships)
 
-# Build Prompt
-def build_prompt(question):
 
-    schema = get_schema()
+# Fetch Sample Data
+def get_sample_data(limit=2):
 
-    relationships = get_relationships()
+    sample_text = []
 
-    schema_text = schema_to_text(schema)
+    tables = get_tables()
 
-    relationship_text = relationships_to_text(
-        relationships
+    for table in tables:
+
+        try:
+
+            cursor.execute(
+                f"SELECT * FROM {table} LIMIT {limit}"
+            )
+
+            rows = cursor.fetchall()
+
+            sample_text.append(
+                f"{table} sample rows: {rows}"
+            )
+
+        except:
+            continue
+
+    return "\n".join(sample_text)
+
+
+# Clean SQL Response
+
+def clean_sql(sql_query):
+
+    sql_query = sql_query.strip()
+
+    # Remove markdown blocks
+    sql_query = sql_query.replace(
+        "```sql",
+        ""
     )
 
-    return f"""
-You are a SQLite SQL expert.
-
-Database Schema:
-{schema_text}
-
-Relationships:
-{relationship_text}
-
-Rules:
-- Only use tables provided above
-- Only use columns provided above
-- Always use proper JOINs
-- Only generate SELECT queries
-- Do NOT generate INSERT, UPDATE, DELETE, DROP
-- Return ONLY SQL query
-- No explanations
-- Use SQLite syntax only
-
-User Question:
-{question}
-"""
-
-#Clean SQL
-def clean_sql(sql):
-    sql = sql.strip()
-
-    if "```" in sql:
-        sql = sql.split("```")[-2]
-
-    return sql.strip()
-
-# Generate SQL
-def generate_sql(question):
-
-    prompt = build_prompt(question)
-
-    response = client.chat.completions.create(
-        model="llama3-8b-8192",
-        messages=[
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        temperature=0
+    sql_query = sql_query.replace(
+        "```",
+        ""
     )
 
-    sql_query = response.choices[0].message.content.strip()
-    sql_query = clean_sql(sql_query)
-    return sql_query
+    return sql_query.strip()
 
-# Execute SQL
+
+# SQL Safety Validation
+
+def validate_sql(sql_query):
+
+    sql_lower = sql_query.lower().strip()
+
+    blocked_keywords = [
+        "insert",
+        "update",
+        "delete",
+        "drop",
+        "alter",
+        "truncate"
+    ]
+
+    for keyword in blocked_keywords:
+
+        if keyword in sql_lower:
+            return False
+
+    return sql_lower.startswith("select")
+
+
+# Execute SQL Query
+
 def execute_sql(sql_query):
+
     try:
-        sql_lower = sql_query.lower().strip()
 
-        if not sql_lower.startswith("select"):
-            return "Error: Only SELECT queries are allowed."
+        # Clean SQL
+        sql_query = clean_sql(sql_query)
 
+        # Validate SQL
+        is_safe = validate_sql(sql_query)
+
+        if not is_safe:
+
+            return "Error: Unsafe query detected."
+
+        # Execute query
         cursor.execute(sql_query)
+
         rows = cursor.fetchall()
+
         return rows
 
     except Exception as e:
-        return str(e)
 
-# Fix SQL Errors
-def fix_sql(previous_sql, error_msg):
-
-    schema = get_schema()
-
-    relationships = get_relationships()
-
-    schema_text = schema_to_text(schema)
-
-    relationship_text = relationships_to_text(
-        relationships
-    )
-
-    fix_prompt = f"""
-You are a SQLite SQL expert.
-
-Database Schema:
-{schema_text}
-
-Relationships:
-{relationship_text}
-
-The following SQL query produced an error.
-
-SQL:
-{previous_sql}
-
-Error:
-{error_msg}
-
-Fix the SQL query.
-
-Rules:
-- Return ONLY corrected SQL
-- Only SELECT queries allowed
-- Use valid SQLite syntax
-- If aggregation is needed, use SUM, COUNT, AVG correctly
-- Always use table aliases when joining
-- Prefer explicit JOIN instead of implicit joins
-- Use only existing tables and columns
-- No explanations
-"""
-
-    response = client.chat.completions.create(
-        model="llama3-8b-8192",
-        messages=[
-            {
-                "role": "user",
-                "content": fix_prompt
-            }
-        ],
-        temperature=0
-    )
-
-    fixed_query = response.choices[0].message.content.strip()
-
-    return fixed_query
-
-# Full AI SQL Pipeline
-
-def ask_database(question):
-
-    print(f"\nQuestion: {question}")
-
-    sql_query = generate_sql(question)
-
-    print(f"\nGenerated SQL:\n{sql_query}")
-
-    result = execute_sql(sql_query)
-
-    # If SQL Error then Auto Fix
-    if isinstance(result, str):
-
-        print(f"\nSQL Error:\n{result}")
-
-        fixed_sql = fix_sql(
-            sql_query,
-            result
-        )
-
-        print(f"\nFixed SQL:\n{fixed_sql}")
-
-        result = execute_sql(fixed_sql)
-
-    return result
-
-# Usage
-
-if __name__ == "__main__":
-
-    question = "Show all users and their order amounts"
-
-    result = ask_database(question)
-
-    print("\nFinal Result:")
-
-    for row in result:
-        print(row)
+        return f"Error: {str(e)}"
