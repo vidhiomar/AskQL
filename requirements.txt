@@ -1,3 +1,5 @@
 groq
 sqlite3
 python-dotenv
+pandas
+openpyxl
