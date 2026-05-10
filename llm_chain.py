@@ -14,7 +14,25 @@ client = Groq(
     api_key=os.getenv("GROQ_API_KEY")
 )
 
-# Generate SQL
+MODEL_NAME = "llama3-8b-8192"
+
+
+def clean_llm_response(text):
+
+    text = text.strip()
+
+    text = text.replace(
+        "```sql",
+        ""
+    )
+
+    text = text.replace(
+        "```",
+        ""
+    )
+
+    return text.strip()
+
 
 def generate_sql(
     question,
@@ -23,59 +41,92 @@ def generate_sql(
     sample_data_text=""
 ):
 
-    prompt = sql_generation_prompt(
-        schema_text=schema_text,
-        relationship_text=relationship_text,
-        question=question,
-        sample_data_text=sample_data_text
-    )
+    try:
 
-    response = client.chat.completions.create(
-        model="llama3-8b-8192",
-        messages=[
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        temperature=0
-    )
+        prompt = sql_generation_prompt(
+            schema_text=schema_text,
+            relationship_text=relationship_text,
+            question=question,
+            sample_data_text=sample_data_text
+        )
 
-    sql_query = response.choices[0].message.content.strip()
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0,
+            max_tokens=300
+        )
 
-    return sql_query
+        sql_query = (
+            response
+            .choices[0]
+            .message
+            .content
+        )
 
-# Fix SQL Errors
+        sql_query = clean_llm_response(
+            sql_query
+        )
+
+        return sql_query
+
+    except Exception as e:
+
+        return f"Error: {str(e)}"
+
 
 def fix_sql(
-    previous_sql, error_msg,schema_text,
-    relationship_text,sample_data_text=""
+    previous_sql,
+    error_msg,
+    schema_text,
+    relationship_text,
+    sample_data_text=""
 ):
 
-    prompt = sql_fix_prompt(
-        schema_text=schema_text,
-        relationship_text=relationship_text,
-        previous_sql=previous_sql,
-        error_msg=error_msg,
-        sample_data_text=sample_data_text
-    )
+    try:
 
-    response = client.chat.completions.create(
-        model="llama3-8b-8192",
-        messages=[
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        temperature=0
-    )
+        prompt = sql_fix_prompt(
+            schema_text=schema_text,
+            relationship_text=relationship_text,
+            previous_sql=previous_sql,
+            error_msg=error_msg,
+            sample_data_text=sample_data_text
+        )
 
-    fixed_query = response.choices[0].message.content.strip()
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0,
+            max_tokens=300
+        )
 
-    return fixed_query
+        fixed_query = (
+            response
+            .choices[0]
+            .message
+            .content
+        )
 
-# Explain Results
+        fixed_query = clean_llm_response(
+            fixed_query
+        )
+
+        return fixed_query
+
+    except Exception as e:
+
+        return f"Error: {str(e)}"
+
 
 def explain_result(
     question,
@@ -83,23 +134,39 @@ def explain_result(
     result
 ):
 
-    prompt = explain_result_prompt(
-        question=question,
-        sql_query=sql_query,
-        result=result
-    )
+    try:
 
-    response = client.chat.completions.create(
-        model="llama3-8b-8192",
-        messages=[
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        temperature=0.3
-    )
+        prompt = explain_result_prompt(
+            question=question,
+            sql_query=sql_query,
+            result=result
+        )
 
-    explanation = response.choices[0].message.content.strip()
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.3,
+            max_tokens=200
+        )
 
-    return explanation
+        explanation = (
+            response
+            .choices[0]
+            .message
+            .content
+        )
+
+        explanation = clean_llm_response(
+            explanation
+        )
+
+        return explanation
+
+    except Exception as e:
+
+        return f"Explanation Error: {str(e)}"
