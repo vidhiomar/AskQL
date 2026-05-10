@@ -10,42 +10,24 @@ conn = sqlite3.connect(
 cursor = conn.cursor()
 
 
-def setup_database():
+def clear_database():
 
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY,
-        name TEXT
-    )
+        SELECT name
+        FROM sqlite_master
+        WHERE type='table'
+        AND name NOT LIKE 'sqlite_%';
     """)
 
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS orders (
-        id INTEGER PRIMARY KEY,
-        user_id INTEGER,
-        amount INTEGER
-    )
-    """)
+    tables = cursor.fetchall()
 
-    cursor.execute("DELETE FROM users")
-    cursor.execute("DELETE FROM orders")
+    for table in tables:
 
-    cursor.executemany(
-        "INSERT INTO users VALUES (?, ?)",
-        [
-            (1, "Rahul"),
-            (2, "Anita")
-        ]
-    )
+        table_name = table[0]
 
-    cursor.executemany(
-        "INSERT INTO orders VALUES (?, ?, ?)",
-        [
-            (1, 1, 500),
-            (2, 1, 700),
-            (3, 2, 300)
-        ]
-    )
+        cursor.execute(
+            f"DROP TABLE IF EXISTS {table_name}"
+        )
 
     conn.commit()
 
@@ -217,7 +199,9 @@ def validate_tables_and_columns(sql_query):
 
             column_name = col.split()[0]
 
-            valid_columns.append(column_name)
+            valid_columns.append(
+                column_name
+            )
 
     sql_keywords = [
         "select",
@@ -285,9 +269,13 @@ def execute_sql(sql_query):
 
     try:
 
-        sql_query = clean_sql(sql_query)
+        sql_query = clean_sql(
+            sql_query
+        )
 
-        is_safe = validate_sql(sql_query)
+        is_safe = validate_sql(
+            sql_query
+        )
 
         if not is_safe:
 
@@ -306,9 +294,22 @@ def execute_sql(sql_query):
 
         cursor.execute(sql_query)
 
+        columns = [
+            description[0]
+            for description in cursor.description
+        ]
+
         rows = cursor.fetchall()
 
-        return rows
+        formatted_rows = []
+
+        for row in rows:
+
+            formatted_rows.append(
+                dict(zip(columns, row))
+            )
+
+        return formatted_rows
 
     except Exception as e:
 

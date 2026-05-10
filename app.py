@@ -4,7 +4,7 @@ from llm_chain import (
     explain_result
 )
 
-from db import (
+from database import (
     get_schema,
     get_relationships,
     schema_to_text,
@@ -20,30 +20,20 @@ def build_database_context():
 
     relationships = get_relationships()
 
-    schema_text = schema_to_text(
-        schema
-    )
+    schema_text = schema_to_text(schema)
 
-    relationship_text = relationships_to_text(
-        relationships
-    )
+    relationship_text = relationships_to_text(relationships)
 
     sample_data_text = get_sample_data()
 
     return (
-        schema_text,
-        relationship_text,
-        sample_data_text
+        schema_text,relationship_text, sample_data_text
     )
 
 
 def ask_database(question):
 
-    (
-        schema_text,
-        relationship_text,
-        sample_data_text
-    ) = build_database_context()
+    (schema_text, relationship_text, sample_data_text) = build_database_context()
 
     generated_sql = generate_sql(
         question=question,
@@ -52,9 +42,7 @@ def ask_database(question):
         sample_data_text=sample_data_text
     )
 
-    result = execute_sql(
-        generated_sql
-    )
+    result = execute_sql(generated_sql)
 
     fixed_sql = None
 

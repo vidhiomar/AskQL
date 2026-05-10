@@ -49,6 +49,10 @@ IMPORTANT RULES
 14. Do NOT wrap SQL in ```sql
 15. If question is unrelated to database, return:
     SELECT 'Invalid Question';
+16. Use ONLY columns present in schema.
+17. Never invent column names.
+18. If a requested field does not exist,
+    return the closest matching column.
 
 USER QUESTION
 {question}

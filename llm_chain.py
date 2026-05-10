@@ -14,7 +14,7 @@ client = Groq(
     api_key=os.getenv("GROQ_API_KEY")
 )
 
-MODEL_NAME = "llama3-8b-8192"
+MODEL_NAME = "llama-3.1-8b-instant"
 
 
 def clean_llm_response(text):
@@ -59,7 +59,7 @@ def generate_sql(
                 }
             ],
             temperature=0,
-            max_tokens=300
+            max_tokens=120
         )
 
         sql_query = (

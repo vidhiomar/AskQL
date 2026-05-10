@@ -1,1 +1,66 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Environment Variables
 .env
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv/
+
+# Database Files
+*.db
+*.sqlite3
+
+# Uploads
+uploads/
+
+# Logs
+*.log
+
+# VS Code
+.vscode/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Build Files
+build/
+dist/
+*.egg-info/
+
+# Cache
+.cache/
+
+# pytest
+.pytest_cache/
+
+# mypy
+.mypy_cache/
+
+# Temporary Files
+temp/
+tmp/
+
+# Coverage
+.coverage
+htmlcov/
+
+# Secrets
+*.pem
+*.key
+
+# FastAPI
+*.pid
+
+# Mac/Linux hidden files
+.*~

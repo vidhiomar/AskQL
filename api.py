@@ -1,18 +1,10 @@
-from fastapi import (
-    FastAPI,
-    UploadFile,
-    File,
-    HTTPException
+from fastapi import (FastAPI, UploadFile, File, HTTPException
 )
-
 from pydantic import BaseModel
-
 import shutil
 import os
 import time
-
 from excel_loader import upload_excel_to_db
-
 from app import ask_database
 
 app = FastAPI(
@@ -21,11 +13,8 @@ app = FastAPI(
     version="1.0.0"
 )
 
-
 class QueryRequest(BaseModel):
-
     question: str
-
 
 @app.get("/")
 def home():
@@ -45,7 +34,8 @@ async def upload_excel(
 
         allowed_extensions = [
             ".xlsx",
-            ".xls"
+            ".xls",
+            ".csv"
         ]
 
         file_ext = os.path.splitext(
