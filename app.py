@@ -1,7 +1,7 @@
 from llm_chain import (
     generate_sql,
     fix_sql,
-    explain_result
+    execute_sql
 )
 
 from database import (

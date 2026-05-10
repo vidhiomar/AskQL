@@ -1,203 +1,105 @@
-import sqlite3
+from groq import Groq
+from dotenv import load_dotenv
+import os
 
-# Database Connect
-DATABASE_PATH = "database.db"
-
-conn = sqlite3.connect(
-    DATABASE_PATH,
-    check_same_thread=False
+from prompt import (
+    sql_generation_prompt,
+    sql_fix_prompt,
+    explain_result_prompt
 )
 
-cursor = conn.cursor()
+load_dotenv()
 
-# Fetch All Tables
-def get_tables():
+client = Groq(
+    api_key=os.getenv("GROQ_API_KEY")
+)
 
-    cursor.execute("""
-        SELECT name
-        FROM sqlite_master
-        WHERE type='table'
-        AND name NOT LIKE 'sqlite_%';
-    """)
+# Generate SQL
 
-    tables = cursor.fetchall()
+def generate_sql(
+    question,
+    schema_text,
+    relationship_text,
+    sample_data_text=""
+):
 
-    return [table[0] for table in tables]
-
-
-# Fetch Schema Dynamically
-
-def get_schema():
-
-    schema = {}
-
-    tables = get_tables()
-
-    for table in tables:
-
-        cursor.execute(
-            f"PRAGMA table_info({table})"
-        )
-
-        columns = cursor.fetchall()
-
-        schema[table] = []
-
-        for column in columns:
-
-            col_name = column[1]
-            col_type = column[2]
-
-            schema[table].append(
-                f"{col_name} {col_type}"
-            )
-
-    return schema
-
-
-# Fetch Foreign Key Relationships
-def get_relationships():
-
-    relationships = []
-
-    tables = get_tables()
-
-    for table in tables:
-
-        cursor.execute(
-            f"PRAGMA foreign_key_list({table})"
-        )
-
-        foreign_keys = cursor.fetchall()
-
-        for fk in foreign_keys:
-
-            ref_table = fk[2]
-            from_col = fk[3]
-            to_col = fk[4]
-
-            relationships.append(
-                f"{table}.{from_col} -> {ref_table}.{to_col}"
-            )
-
-    return relationships
-
-
-# Convert Schema to Text
-def schema_to_text(schema):
-
-    lines = []
-
-    for table, columns in schema.items():
-
-        cols = ", ".join(columns)
-
-        lines.append(
-            f"{table}({cols})"
-        )
-
-    return "\n".join(lines)
-
-
-# Convert Relationships to Text
-def relationships_to_text(relationships):
-
-    return "\n".join(relationships)
-
-
-# Fetch Sample Data
-def get_sample_data(limit=2):
-
-    sample_text = []
-
-    tables = get_tables()
-
-    for table in tables:
-
-        try:
-
-            cursor.execute(
-                f"SELECT * FROM {table} LIMIT {limit}"
-            )
-
-            rows = cursor.fetchall()
-
-            sample_text.append(
-                f"{table} sample rows: {rows}"
-            )
-
-        except:
-            continue
-
-    return "\n".join(sample_text)
-
-
-# Clean SQL Response
-
-def clean_sql(sql_query):
-
-    sql_query = sql_query.strip()
-
-    # Remove markdown blocks
-    sql_query = sql_query.replace(
-        "```sql",
-        ""
+    prompt = sql_generation_prompt(
+        schema_text=schema_text,
+        relationship_text=relationship_text,
+        question=question,
+        sample_data_text=sample_data_text
     )
 
-    sql_query = sql_query.replace(
-        "```",
-        ""
+    response = client.chat.completions.create(
+        model="llama3-8b-8192",
+        messages=[
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        temperature=0
     )
 
-    return sql_query.strip()
+    sql_query = response.choices[0].message.content.strip()
 
+    return sql_query
 
-# SQL Safety Validation
+# Fix SQL Errors
 
-def validate_sql(sql_query):
+def fix_sql(
+    previous_sql, error_msg,schema_text,
+    relationship_text,sample_data_text=""
+):
 
-    sql_lower = sql_query.lower().strip()
+    prompt = sql_fix_prompt(
+        schema_text=schema_text,
+        relationship_text=relationship_text,
+        previous_sql=previous_sql,
+        error_msg=error_msg,
+        sample_data_text=sample_data_text
+    )
 
-    blocked_keywords = [
-        "insert",
-        "update",
-        "delete",
-        "drop",
-        "alter",
-        "truncate"
-    ]
+    response = client.chat.completions.create(
+        model="llama3-8b-8192",
+        messages=[
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        temperature=0
+    )
 
-    for keyword in blocked_keywords:
+    fixed_query = response.choices[0].message.content.strip()
 
-        if keyword in sql_lower:
-            return False
+    return fixed_query
 
-    return sql_lower.startswith("select")
+# Explain Results
 
+def explain_result(
+    question,
+    sql_query,
+    result
+):
 
-# Execute SQL Query
+    prompt = explain_result_prompt(
+        question=question,
+        sql_query=sql_query,
+        result=result
+    )
 
-def execute_sql(sql_query):
+    response = client.chat.completions.create(
+        model="llama3-8b-8192",
+        messages=[
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        temperature=0.3
+    )
 
-    try:
+    explanation = response.choices[0].message.content.strip()
 
-        # Clean SQL
-        sql_query = clean_sql(sql_query)
-
-        # Validate SQL
-        is_safe = validate_sql(sql_query)
-
-        if not is_safe:
-
-            return "Error: Unsafe query detected."
-
-        # Execute query
-        cursor.execute(sql_query)
-
-        rows = cursor.fetchall()
-
-        return rows
-
-    except Exception as e:
-
-        return f"Error: {str(e)}"
+    return explanation
