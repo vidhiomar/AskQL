@@ -7,9 +7,7 @@ import os
 load_dotenv()
 
 # Groq Client
-client = Groq(
-    api_key=os.getenv("GROQ_API_KEY")
-)
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # SQLite Connection
 DATABASE_PATH = "database.db"
@@ -27,7 +25,7 @@ def get_tables():
     """)
 
     tables = cursor.fetchall()
-
+    
     return [table[0] for table in tables]
 
 # Fetch Schema Dynamically
